@@ -1,0 +1,1037 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.32.4.45862",
+      "templateHash": "5563658705847673543"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "metadata": {
+        "description": "Environment name (dev, staging, prod)"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('deploy-nsgs-{0}', parameters('environmentName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.32.4.45862",
+              "templateHash": "11073545233580082765"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for NSG deployment"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment name (dev, staging, prod)"
+              }
+            },
+            "vnetAddressSpace": {
+              "type": "string",
+              "defaultValue": "10.30.0.0/16",
+              "metadata": {
+                "description": "VNet address space for internal references"
+              }
+            }
+          },
+          "variables": {
+            "subnets": {
+              "servers": "10.30.1.0/24",
+              "appserviceFrontend": "10.30.2.0/24",
+              "appserviceBackend": "10.30.3.0/24",
+              "peAppservice": "10.30.4.0/24",
+              "peSql": "10.30.5.0/24",
+              "peKeyvault": "10.30.6.0/24",
+              "peStorage": "10.30.7.0/24"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-servers-{0}', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowRdpFromTrusted",
+                    "properties": {
+                      "priority": 100,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "VirtualNetwork",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').servers]",
+                      "destinationPortRange": "3389",
+                      "description": "Allow RDP from within VNet only"
+                    }
+                  },
+                  {
+                    "name": "AllowSshFromTrusted",
+                    "properties": {
+                      "priority": 110,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "VirtualNetwork",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').servers]",
+                      "destinationPortRange": "22",
+                      "description": "Allow SSH from within VNet only"
+                    }
+                  },
+                  {
+                    "name": "DenyAllInbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Inbound",
+                      "access": "Deny",
+                      "protocol": "*",
+                      "sourceAddressPrefix": "*",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRange": "*",
+                      "description": "Deny all other inbound traffic"
+                    }
+                  },
+                  {
+                    "name": "AllowOutboundToVNet",
+                    "properties": {
+                      "priority": 100,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "*",
+                      "sourceAddressPrefix": "[variables('subnets').servers]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[parameters('vnetAddressSpace')]",
+                      "destinationPortRange": "*",
+                      "description": "Allow outbound to entire VNet for testing PE connectivity"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-appservice-frontend-{0}', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowOutboundToAppServicePE",
+                    "properties": {
+                      "priority": 100,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceFrontend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peAppservice]",
+                      "destinationPortRange": "443",
+                      "description": "Allow HTTPS to backend App Service private endpoint"
+                    }
+                  },
+                  {
+                    "name": "AllowOutboundToKeyvaultPE",
+                    "properties": {
+                      "priority": 110,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceFrontend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peKeyvault]",
+                      "destinationPortRange": "443",
+                      "description": "Allow HTTPS to Key Vault private endpoint"
+                    }
+                  },
+                  {
+                    "name": "AllowOutboundToDNS",
+                    "properties": {
+                      "priority": 120,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "*",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceFrontend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "AzurePlatformDNS",
+                      "destinationPortRange": "53",
+                      "description": "Allow DNS resolution"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-appservice-backend-{0}', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowOutboundToSqlPE",
+                    "properties": {
+                      "priority": 100,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceBackend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peSql]",
+                      "destinationPortRange": "1433",
+                      "description": "Allow SQL traffic to SQL private endpoint"
+                    }
+                  },
+                  {
+                    "name": "AllowOutboundToKeyvaultPE",
+                    "properties": {
+                      "priority": 110,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceBackend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peKeyvault]",
+                      "destinationPortRange": "443",
+                      "description": "Allow HTTPS to Key Vault private endpoint"
+                    }
+                  },
+                  {
+                    "name": "AllowOutboundToStoragePE",
+                    "properties": {
+                      "priority": 120,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceBackend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peStorage]",
+                      "destinationPortRange": "443",
+                      "description": "Allow HTTPS to Storage private endpoint"
+                    }
+                  },
+                  {
+                    "name": "AllowOutboundToDNS",
+                    "properties": {
+                      "priority": 130,
+                      "direction": "Outbound",
+                      "access": "Allow",
+                      "protocol": "*",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceBackend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "AzurePlatformDNS",
+                      "destinationPortRange": "53",
+                      "description": "Allow DNS resolution"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-pe-appservice-{0}', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowHttpsFromFrontend",
+                    "properties": {
+                      "priority": 100,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceFrontend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peAppservice]",
+                      "destinationPortRange": "443",
+                      "description": "Allow HTTPS from frontend App Service"
+                    }
+                  },
+                  {
+                    "name": "AllowHttpsFromServers",
+                    "properties": {
+                      "priority": 110,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').servers]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peAppservice]",
+                      "destinationPortRange": "443",
+                      "description": "Allow HTTPS from test VMs"
+                    }
+                  },
+                  {
+                    "name": "DenyAllInbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Inbound",
+                      "access": "Deny",
+                      "protocol": "*",
+                      "sourceAddressPrefix": "*",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRange": "*",
+                      "description": "Deny all other inbound traffic"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-pe-sql-{0}', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowSqlFromBackend",
+                    "properties": {
+                      "priority": 100,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceBackend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peSql]",
+                      "destinationPortRange": "1433",
+                      "description": "Allow SQL from backend App Service"
+                    }
+                  },
+                  {
+                    "name": "AllowSqlFromServers",
+                    "properties": {
+                      "priority": 110,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').servers]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peSql]",
+                      "destinationPortRange": "1433",
+                      "description": "Allow SQL from test VMs"
+                    }
+                  },
+                  {
+                    "name": "DenyAllInbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Inbound",
+                      "access": "Deny",
+                      "protocol": "*",
+                      "sourceAddressPrefix": "*",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRange": "*",
+                      "description": "Deny all other inbound traffic"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-pe-keyvault-{0}', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowHttpsFromFrontend",
+                    "properties": {
+                      "priority": 100,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceFrontend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peKeyvault]",
+                      "destinationPortRange": "443",
+                      "description": "Allow HTTPS from frontend App Service"
+                    }
+                  },
+                  {
+                    "name": "AllowHttpsFromBackend",
+                    "properties": {
+                      "priority": 110,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceBackend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peKeyvault]",
+                      "destinationPortRange": "443",
+                      "description": "Allow HTTPS from backend App Service"
+                    }
+                  },
+                  {
+                    "name": "AllowHttpsFromServers",
+                    "properties": {
+                      "priority": 120,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').servers]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peKeyvault]",
+                      "destinationPortRange": "443",
+                      "description": "Allow HTTPS from test VMs"
+                    }
+                  },
+                  {
+                    "name": "DenyAllInbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Inbound",
+                      "access": "Deny",
+                      "protocol": "*",
+                      "sourceAddressPrefix": "*",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRange": "*",
+                      "description": "Deny all other inbound traffic"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/networkSecurityGroups",
+              "apiVersion": "2024-05-01",
+              "name": "[format('nsg-pe-storage-{0}', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "securityRules": [
+                  {
+                    "name": "AllowHttpsFromBackend",
+                    "properties": {
+                      "priority": 100,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').appserviceBackend]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peStorage]",
+                      "destinationPortRange": "443",
+                      "description": "Allow HTTPS from backend App Service"
+                    }
+                  },
+                  {
+                    "name": "AllowHttpsFromServers",
+                    "properties": {
+                      "priority": 110,
+                      "direction": "Inbound",
+                      "access": "Allow",
+                      "protocol": "Tcp",
+                      "sourceAddressPrefix": "[variables('subnets').servers]",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "[variables('subnets').peStorage]",
+                      "destinationPortRange": "443",
+                      "description": "Allow HTTPS from test VMs"
+                    }
+                  },
+                  {
+                    "name": "DenyAllInbound",
+                    "properties": {
+                      "priority": 4096,
+                      "direction": "Inbound",
+                      "access": "Deny",
+                      "protocol": "*",
+                      "sourceAddressPrefix": "*",
+                      "sourcePortRange": "*",
+                      "destinationAddressPrefix": "*",
+                      "destinationPortRange": "*",
+                      "description": "Deny all other inbound traffic"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "outputs": {
+            "nsgServersId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-servers-{0}', parameters('environmentName')))]"
+            },
+            "nsgAppserviceFrontendId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-appservice-frontend-{0}', parameters('environmentName')))]"
+            },
+            "nsgAppserviceBackendId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-appservice-backend-{0}', parameters('environmentName')))]"
+            },
+            "nsgPeAppserviceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-pe-appservice-{0}', parameters('environmentName')))]"
+            },
+            "nsgPeSqlId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-pe-sql-{0}', parameters('environmentName')))]"
+            },
+            "nsgPeKeyvaultId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-pe-keyvault-{0}', parameters('environmentName')))]"
+            },
+            "nsgPeStorageId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/networkSecurityGroups', format('nsg-pe-storage-{0}', parameters('environmentName')))]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('deploy-vnet-{0}', parameters('environmentName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          },
+          "nsgServersId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-nsgs-{0}', parameters('environmentName'))), '2022-09-01').outputs.nsgServersId.value]"
+          },
+          "nsgAppserviceFrontendId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-nsgs-{0}', parameters('environmentName'))), '2022-09-01').outputs.nsgAppserviceFrontendId.value]"
+          },
+          "nsgAppserviceBackendId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-nsgs-{0}', parameters('environmentName'))), '2022-09-01').outputs.nsgAppserviceBackendId.value]"
+          },
+          "nsgPeAppserviceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-nsgs-{0}', parameters('environmentName'))), '2022-09-01').outputs.nsgPeAppserviceId.value]"
+          },
+          "nsgPeSqlId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-nsgs-{0}', parameters('environmentName'))), '2022-09-01').outputs.nsgPeSqlId.value]"
+          },
+          "nsgPeKeyvaultId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-nsgs-{0}', parameters('environmentName'))), '2022-09-01').outputs.nsgPeKeyvaultId.value]"
+          },
+          "nsgPeStorageId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-nsgs-{0}', parameters('environmentName'))), '2022-09-01').outputs.nsgPeStorageId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.32.4.45862",
+              "templateHash": "17209839157903268138"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for VNet deployment"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment name (dev, staging, prod)"
+              }
+            },
+            "nsgServersId": {
+              "type": "string",
+              "metadata": {
+                "description": "NSG resource ID for the servers subnet"
+              }
+            },
+            "nsgAppserviceFrontendId": {
+              "type": "string",
+              "metadata": {
+                "description": "NSG resource ID for the frontend App Service subnet"
+              }
+            },
+            "nsgAppserviceBackendId": {
+              "type": "string",
+              "metadata": {
+                "description": "NSG resource ID for the backend App Service subnet"
+              }
+            },
+            "nsgPeAppserviceId": {
+              "type": "string",
+              "metadata": {
+                "description": "NSG resource ID for the App Service private endpoint subnet"
+              }
+            },
+            "nsgPeSqlId": {
+              "type": "string",
+              "metadata": {
+                "description": "NSG resource ID for the SQL private endpoint subnet"
+              }
+            },
+            "nsgPeKeyvaultId": {
+              "type": "string",
+              "metadata": {
+                "description": "NSG resource ID for the Key Vault private endpoint subnet"
+              }
+            },
+            "nsgPeStorageId": {
+              "type": "string",
+              "metadata": {
+                "description": "NSG resource ID for the Storage private endpoint subnet"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2024-05-01",
+              "name": "[format('vnet-allowance-{0}', parameters('environmentName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "10.30.0.0/16"
+                  ]
+                },
+                "subnets": [
+                  {
+                    "name": "snet-servers",
+                    "properties": {
+                      "addressPrefix": "10.30.1.0/24",
+                      "networkSecurityGroup": {
+                        "id": "[parameters('nsgServersId')]"
+                      },
+                      "privateEndpointNetworkPolicies": "Disabled"
+                    }
+                  },
+                  {
+                    "name": "snet-appservice-frontend",
+                    "properties": {
+                      "addressPrefix": "10.30.2.0/24",
+                      "networkSecurityGroup": {
+                        "id": "[parameters('nsgAppserviceFrontendId')]"
+                      },
+                      "delegations": [
+                        {
+                          "name": "delegation-appservice",
+                          "properties": {
+                            "serviceName": "Microsoft.Web/serverFarms"
+                          }
+                        }
+                      ],
+                      "privateEndpointNetworkPolicies": "Disabled"
+                    }
+                  },
+                  {
+                    "name": "snet-appservice-backend",
+                    "properties": {
+                      "addressPrefix": "10.30.3.0/24",
+                      "networkSecurityGroup": {
+                        "id": "[parameters('nsgAppserviceBackendId')]"
+                      },
+                      "delegations": [
+                        {
+                          "name": "delegation-appservice",
+                          "properties": {
+                            "serviceName": "Microsoft.Web/serverFarms"
+                          }
+                        }
+                      ],
+                      "privateEndpointNetworkPolicies": "Disabled"
+                    }
+                  },
+                  {
+                    "name": "snet-pe-appservice",
+                    "properties": {
+                      "addressPrefix": "10.30.4.0/24",
+                      "networkSecurityGroup": {
+                        "id": "[parameters('nsgPeAppserviceId')]"
+                      },
+                      "privateEndpointNetworkPolicies": "Enabled"
+                    }
+                  },
+                  {
+                    "name": "snet-pe-sql",
+                    "properties": {
+                      "addressPrefix": "10.30.5.0/24",
+                      "networkSecurityGroup": {
+                        "id": "[parameters('nsgPeSqlId')]"
+                      },
+                      "privateEndpointNetworkPolicies": "Enabled"
+                    }
+                  },
+                  {
+                    "name": "snet-pe-keyvault",
+                    "properties": {
+                      "addressPrefix": "10.30.6.0/24",
+                      "networkSecurityGroup": {
+                        "id": "[parameters('nsgPeKeyvaultId')]"
+                      },
+                      "privateEndpointNetworkPolicies": "Enabled"
+                    }
+                  },
+                  {
+                    "name": "snet-pe-storage",
+                    "properties": {
+                      "addressPrefix": "10.30.7.0/24",
+                      "networkSecurityGroup": {
+                        "id": "[parameters('nsgPeStorageId')]"
+                      },
+                      "privateEndpointNetworkPolicies": "Enabled"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "outputs": {
+            "vnetId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/virtualNetworks', format('vnet-allowance-{0}', parameters('environmentName')))]"
+            },
+            "vnetName": {
+              "type": "string",
+              "value": "[format('vnet-allowance-{0}', parameters('environmentName'))]"
+            },
+            "snetServersId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet-allowance-{0}', parameters('environmentName'))), '2024-05-01').subnets[0].id]"
+            },
+            "snetAppserviceFrontendId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet-allowance-{0}', parameters('environmentName'))), '2024-05-01').subnets[1].id]"
+            },
+            "snetAppserviceBackendId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet-allowance-{0}', parameters('environmentName'))), '2024-05-01').subnets[2].id]"
+            },
+            "snetPeAppserviceId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet-allowance-{0}', parameters('environmentName'))), '2024-05-01').subnets[3].id]"
+            },
+            "snetPeSqlId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet-allowance-{0}', parameters('environmentName'))), '2024-05-01').subnets[4].id]"
+            },
+            "snetPeKeyvaultId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet-allowance-{0}', parameters('environmentName'))), '2024-05-01').subnets[5].id]"
+            },
+            "snetPeStorageId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/virtualNetworks', format('vnet-allowance-{0}', parameters('environmentName'))), '2024-05-01').subnets[6].id]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', format('deploy-nsgs-{0}', parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('deploy-private-dns-{0}', parameters('environmentName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "vnetId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}', parameters('environmentName'))), '2022-09-01').outputs.vnetId.value]"
+          },
+          "environmentName": {
+            "value": "[parameters('environmentName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.32.4.45862",
+              "templateHash": "16472221566085630309"
+            }
+          },
+          "parameters": {
+            "vnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "VNet resource ID to link DNS zones to"
+              }
+            },
+            "environmentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment name (dev, staging, prod)"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "[format('privatelink{0}', environment().suffixes.sqlServerHostname)]",
+              "location": "global",
+              "properties": {}
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', format('privatelink{0}', environment().suffixes.sqlServerHostname), format('link-sql-{0}', parameters('environmentName')))]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink{0}', environment().suffixes.sqlServerHostname))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.vaultcore.azure.net",
+              "location": "global",
+              "properties": {}
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.vaultcore.azure.net', format('link-keyvault-{0}', parameters('environmentName')))]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "privatelink.azurewebsites.net",
+              "location": "global",
+              "properties": {}
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', 'privatelink.azurewebsites.net', format('link-appservice-{0}', parameters('environmentName')))]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurewebsites.net')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "[format('privatelink.blob.{0}', environment().suffixes.storage)]",
+              "location": "global",
+              "properties": {}
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', format('privatelink.blob.{0}', environment().suffixes.storage), format('link-blob-{0}', parameters('environmentName')))]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.blob.{0}', environment().suffixes.storage))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2024-06-01",
+              "name": "[format('privatelink.file.{0}', environment().suffixes.storage)]",
+              "location": "global",
+              "properties": {}
+            },
+            {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2024-06-01",
+              "name": "[format('{0}/{1}', format('privatelink.file.{0}', environment().suffixes.storage), format('link-file-{0}', parameters('environmentName')))]",
+              "location": "global",
+              "properties": {
+                "virtualNetwork": {
+                  "id": "[parameters('vnetId')]"
+                },
+                "registrationEnabled": false
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.file.{0}', environment().suffixes.storage))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "dnsZoneSqlId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink{0}', environment().suffixes.sqlServerHostname))]"
+            },
+            "dnsZoneKeyvaultId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.vaultcore.azure.net')]"
+            },
+            "dnsZoneAppserviceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.azurewebsites.net')]"
+            },
+            "dnsZoneBlobId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.blob.{0}', environment().suffixes.storage))]"
+            },
+            "dnsZoneFileId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', format('privatelink.file.{0}', environment().suffixes.storage))]"
+            },
+            "dnsZoneSqlName": {
+              "type": "string",
+              "value": "[format('privatelink{0}', environment().suffixes.sqlServerHostname)]"
+            },
+            "dnsZoneKeyvaultName": {
+              "type": "string",
+              "value": "privatelink.vaultcore.azure.net"
+            },
+            "dnsZoneAppserviceName": {
+              "type": "string",
+              "value": "privatelink.azurewebsites.net"
+            },
+            "dnsZoneBlobName": {
+              "type": "string",
+              "value": "[format('privatelink.blob.{0}', environment().suffixes.storage)]"
+            },
+            "dnsZoneFileName": {
+              "type": "string",
+              "value": "[format('privatelink.file.{0}', environment().suffixes.storage)]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}', parameters('environmentName')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "vnetId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}', parameters('environmentName'))), '2022-09-01').outputs.vnetId.value]"
+    },
+    "vnetName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}', parameters('environmentName'))), '2022-09-01').outputs.vnetName.value]"
+    },
+    "snetServersId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}', parameters('environmentName'))), '2022-09-01').outputs.snetServersId.value]"
+    },
+    "snetAppserviceFrontendId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}', parameters('environmentName'))), '2022-09-01').outputs.snetAppserviceFrontendId.value]"
+    },
+    "snetAppserviceBackendId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}', parameters('environmentName'))), '2022-09-01').outputs.snetAppserviceBackendId.value]"
+    },
+    "snetPeAppserviceId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}', parameters('environmentName'))), '2022-09-01').outputs.snetPeAppserviceId.value]"
+    },
+    "snetPeSqlId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}', parameters('environmentName'))), '2022-09-01').outputs.snetPeSqlId.value]"
+    },
+    "snetPeKeyvaultId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}', parameters('environmentName'))), '2022-09-01').outputs.snetPeKeyvaultId.value]"
+    },
+    "snetPeStorageId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-vnet-{0}', parameters('environmentName'))), '2022-09-01').outputs.snetPeStorageId.value]"
+    },
+    "dnsZoneSqlId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-private-dns-{0}', parameters('environmentName'))), '2022-09-01').outputs.dnsZoneSqlId.value]"
+    },
+    "dnsZoneKeyvaultId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-private-dns-{0}', parameters('environmentName'))), '2022-09-01').outputs.dnsZoneKeyvaultId.value]"
+    },
+    "dnsZoneAppserviceId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-private-dns-{0}', parameters('environmentName'))), '2022-09-01').outputs.dnsZoneAppserviceId.value]"
+    },
+    "dnsZoneBlobId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-private-dns-{0}', parameters('environmentName'))), '2022-09-01').outputs.dnsZoneBlobId.value]"
+    },
+    "dnsZoneFileId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('deploy-private-dns-{0}', parameters('environmentName'))), '2022-09-01').outputs.dnsZoneFileId.value]"
+    }
+  }
+}
