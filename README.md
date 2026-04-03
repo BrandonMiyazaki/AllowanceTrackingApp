@@ -2,8 +2,6 @@
 
 A family allowance tracker that lets parents manage their kids' allowance balances — add funds, track spending, and view transaction history. Built with a Blazor Server frontend, Node.js/Express API backend, and Azure SQL Database, all deployed to Azure App Services with private networking.
 
-> **Disclaimer:** This project was built primarily as a learning exercise and personal tool. While it follows sound architectural patterns, it has not been through formal code review or production hardening. Use at your own risk and discretion.
-
 ## Architecture
 
 ```
@@ -24,6 +22,7 @@ A family allowance tracker that lets parents manage their kids' allowance balanc
 - **Database** — Azure SQL, accessible only via private endpoint
 - **Key Vault** — Stores JWT signing secret, accessible only via private endpoint
 - **Networking** — VNet with dedicated subnets, NSGs, and private DNS zones
+- **Optional edge protection** — The web app can be placed behind **Azure Front Door** (e.g., with WAF) to secure and control inbound connectivity to the web app.
 
 ## Project Structure
 
@@ -41,9 +40,105 @@ A family allowance tracker that lets parents manage their kids' allowance balanc
 │   └── database/          # SQL schema (init.sql)
 ```
 
-## Getting Started
+## Prerequisites
 
-For prerequisites, local development setup, infrastructure deployment, and application deployment steps, see **[INSTRUCTIONS.md](INSTRUCTIONS.md)**.
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [Node.js 20+](https://nodejs.org/)
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- An Azure subscription
+
+## Local Development
+
+### Backend
+
+```bash
+cd src/backend
+cp .env.example .env       # Edit with your local settings
+npm install
+npm start                  # Runs on http://localhost:3000
+```
+
+### Frontend
+
+```bash
+cd src/frontend
+dotnet run                 # Runs on http://localhost:5000
+```
+
+The frontend reads `ApiBaseUrl` from `appsettings.json` (defaults to `http://localhost:3000`).
+
+## Infrastructure Deployment
+
+Infrastructure is defined in Bicep and deployed in 5 steps. Each step has a `parameters.bicepparam.example` — copy it to `parameters.bicepparam` and fill in your values before deploying.
+
+```bash
+# 1. Copy and configure parameters for each step
+cp infra/networking/parameters.bicepparam.example infra/networking/parameters.bicepparam
+cp infra/sql/parameters.bicepparam.example infra/sql/parameters.bicepparam
+cp infra/backend/parameters.bicepparam.example infra/backend/parameters.bicepparam
+cp infra/frontend/parameters.bicepparam.example infra/frontend/parameters.bicepparam
+cp infra/monitoring/parameters.bicepparam.example infra/monitoring/parameters.bicepparam
+
+# 2. Deploy in order (each step depends on outputs from the previous)
+az deployment group create --resource-group rg-allowanceapp-dev \
+  --template-file infra/networking/main.bicep \
+  --parameters infra/networking/parameters.bicepparam
+
+az deployment group create --resource-group rg-allowanceapp-dev \
+  --template-file infra/sql/main.bicep \
+  --parameters infra/sql/parameters.bicepparam
+
+az deployment group create --resource-group rg-allowanceapp-dev \
+  --template-file infra/backend/main.bicep \
+  --parameters infra/backend/parameters.bicepparam
+
+az deployment group create --resource-group rg-allowanceapp-dev \
+  --template-file infra/frontend/main.bicep \
+  --parameters infra/frontend/parameters.bicepparam
+
+az deployment group create --resource-group rg-allowanceapp-dev \
+  --template-file infra/monitoring/main.bicep \
+  --parameters infra/monitoring/parameters.bicepparam
+```
+
+Or use the GitHub Actions workflow (`.github/workflows/deploy-infra.yml`) which supports deploying individual steps or all at once via `workflow_dispatch`.
+
+## Application Deployment
+
+### Backend (Node.js → Linux App Service)
+
+```bash
+cd src/backend
+tar.exe -a -cf backend-deploy.zip src/ package.json package-lock.json
+az webapp deploy --resource-group rg-allowanceapp-dev \
+  --name app-api-allowanceapp-dev \
+  --src-path backend-deploy.zip --type zip
+```
+
+### Frontend (Blazor → Linux App Service)
+
+```bash
+dotnet publish src/frontend/AllowanceTracker.csproj -c Release -o ./deploy-frontend
+cd deploy-frontend
+tar.exe -a -cf ../frontend-deploy.zip *
+cd ..
+az webapp deploy --resource-group rg-allowanceapp-dev \
+  --name app-web-allowanceapp-dev \
+  --src-path frontend-deploy.zip --type zip
+```
+
+> **Note:** Use `tar.exe` (not `Compress-Archive`) to create zips — Linux App Service requires forward-slash paths.
+
+## Initial Setup
+
+The database seed script (`src/database/init.sql`) creates a default `parent` account. Before running the script, generate a bcrypt hash for your chosen password and replace the `<GENERATE_BCRYPT_HASH>` placeholder:
+
+```bash
+cd src/backend
+node -e "const b=require('bcrypt');b.hash('YOUR_PASSWORD',12).then(console.log)"
+```
+
+After logging in as the parent, create child accounts through the app.
 
 ## Security
 
