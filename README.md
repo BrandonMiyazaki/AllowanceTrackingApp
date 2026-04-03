@@ -2,7 +2,7 @@
 
 A family allowance tracker that lets parents manage their kids' allowance balances — add funds, track spending, and view transaction history. Built with a Blazor Server frontend, Node.js/Express API backend, and Azure SQL Database, all deployed to Azure App Services with private networking.
 
-<img width="357" height="397" alt="image" src="https://github.com/user-attachments/assets/f6a262ae-cd3f-4eed-b976-ea8a94b98daa" />
+<img width="357" height="397" alt="image" src="https://github.com/user-attachments/assets/f6a262ae-cd3f-4eed-b976-ea8a94b98daa" /> (<br>)  
 
 
 
