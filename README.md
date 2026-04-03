@@ -1,6 +1,6 @@
 # Allowance Tracking App
 
-A family allowance tracker that lets parents manage their kids' allowance balances — add funds, track spending, and view transaction history. Built with a Blazor Server frontend, Node.js/Express API backend, and Azure SQL Database, all deployed to Azure App Services with private networking.
+A family allowance tracker that lets parents manage their kids' allowance balances — add funds, track spending, and view transaction history. Built with a Blazor Server frontend, Node.js/Express [...]  
 
 ## Architecture
 
@@ -22,6 +22,7 @@ A family allowance tracker that lets parents manage their kids' allowance balanc
 - **Database** — Azure SQL, accessible only via private endpoint
 - **Key Vault** — Stores JWT signing secret, accessible only via private endpoint
 - **Networking** — VNet with dedicated subnets, NSGs, and private DNS zones
+- **Optional edge protection** — The web app can be placed behind **Azure Front Door** (e.g., with WAF) to secure and control inbound connectivity to the web app.
 
 ## Project Structure
 
@@ -130,7 +131,7 @@ az webapp deploy --resource-group rg-allowanceapp-dev \
 
 ## Initial Setup
 
-The database seed script (`src/database/init.sql`) creates a default `parent` account. Before running the script, generate a bcrypt hash for your chosen password and replace the `<GENERATE_BCRYPT_HASH>` placeholder:
+The database seed script (`src/database/init.sql`) creates a default `parent` account. Before running the script, generate a bcrypt hash for your chosen password and replace the `<GENERATE_BCRYPT[...]` placeholder.
 
 ```bash
 cd src/backend
