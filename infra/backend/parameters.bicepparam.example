@@ -1,0 +1,30 @@
+using './main.bicep'
+
+param location = 'westus2'
+param environmentName = 'dev'
+
+// ---------------------------------------------------------------------------
+// App Service Plan SKU — B1 for dev; scale to S1/P1v3+ for production
+// ---------------------------------------------------------------------------
+param aspSkuName = 'B1'
+param aspSkuTier = 'Basic'
+
+// ---------------------------------------------------------------------------
+// Tenant ID — replace with your Azure AD tenant ID
+// ---------------------------------------------------------------------------
+param tenantId = '<YOUR_TENANT_ID>'
+
+// ---------------------------------------------------------------------------
+// Step 1 Outputs — replace with actual resource IDs from your deployment
+// ---------------------------------------------------------------------------
+param backendSubnetId = '/subscriptions/<YOUR_SUBSCRIPTION_ID>/resourceGroups/rg-allowanceapp-dev/providers/Microsoft.Network/virtualNetworks/vnet-allowanceapp-dev/subnets/snet-appservice-backend'
+param peAppServiceSubnetId = '/subscriptions/<YOUR_SUBSCRIPTION_ID>/resourceGroups/rg-allowanceapp-dev/providers/Microsoft.Network/virtualNetworks/vnet-allowanceapp-dev/subnets/snet-pe-appservice'
+param peKeyvaultSubnetId = '/subscriptions/<YOUR_SUBSCRIPTION_ID>/resourceGroups/rg-allowanceapp-dev/providers/Microsoft.Network/virtualNetworks/vnet-allowanceapp-dev/subnets/snet-pe-keyvault'
+param webAppDnsZoneId = '/subscriptions/<YOUR_SUBSCRIPTION_ID>/resourceGroups/rg-allowanceapp-dev/providers/Microsoft.Network/privateDnsZones/privatelink.azurewebsites.net'
+param kvDnsZoneId = '/subscriptions/<YOUR_SUBSCRIPTION_ID>/resourceGroups/rg-allowanceapp-dev/providers/Microsoft.Network/privateDnsZones/privatelink.vaultcore.azure.net'
+
+// ---------------------------------------------------------------------------
+// Step 2 Outputs — replace with actual values from your deployment
+// ---------------------------------------------------------------------------
+param sqlServerFqdn = '<YOUR_SQL_SERVER>.database.windows.net'
+param databaseName = 'allowance-db'

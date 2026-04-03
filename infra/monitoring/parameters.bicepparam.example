@@ -1,0 +1,25 @@
+using './main.bicep'
+
+param location = 'westus2'
+param environmentName = 'dev'
+
+// ---------------------------------------------------------------------------
+// Log retention
+// ---------------------------------------------------------------------------
+param logRetentionInDays = 30
+
+// ---------------------------------------------------------------------------
+// Step 2 Outputs — replace with actual values from your deployment
+// ---------------------------------------------------------------------------
+param sqlServerName = '<YOUR_SQL_SERVER_NAME>'
+param databaseName = 'allowance-db'
+
+// ---------------------------------------------------------------------------
+// Step 3 Outputs — replace with actual values from your deployment
+// ---------------------------------------------------------------------------
+param backendAppServiceName = '<YOUR_BACKEND_APP_NAME>'
+
+// ---------------------------------------------------------------------------
+// Step 4 Outputs — replace with actual values from your deployment
+// ---------------------------------------------------------------------------
+param frontendAppServiceName = '<YOUR_FRONTEND_APP_NAME>'

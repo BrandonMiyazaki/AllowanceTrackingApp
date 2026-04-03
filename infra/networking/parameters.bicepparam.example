@@ -1,0 +1,12 @@
+using './main.bicep'
+
+param location = 'westus2'
+param environmentName = 'dev'
+param vnetAddressPrefix = '10.30.0.0/16'
+param serversSubnetPrefix = '10.30.1.0/24'
+param frontendSubnetPrefix = '10.30.2.0/24'
+param backendSubnetPrefix = '10.30.3.0/24'
+param peAppServiceSubnetPrefix = '10.30.4.0/24'
+param peSqlSubnetPrefix = '10.30.5.0/24'
+param peKeyvaultSubnetPrefix = '10.30.6.0/24'
+param peStorageSubnetPrefix = '10.30.7.0/24'

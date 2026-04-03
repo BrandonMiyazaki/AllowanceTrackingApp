@@ -1,0 +1,42 @@
+@inherits LayoutComponentBase
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+<div class="app-container">
+    @if (Auth.IsLoggedIn)
+    {
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2>💰 Allowance</h2>
+                <p class="user-greeting">Hi, @Auth.CurrentUser?.DisplayName!</p>
+            </div>
+            <ul class="nav-links">
+                <li><a href="/dashboard">📊 Dashboard</a></li>
+                @if (Auth.CurrentUser?.Role == "parent")
+                {
+                    <li><a href="/add">➕ Add Allowance</a></li>
+                }
+                <li><a href="/deduct">➖ Spend/Deduct</a></li>
+                @if (Auth.CurrentUser?.Role == "parent")
+                {
+                    <li><a href="/manage-kids">👧 Manage Kids</a></li>
+                }
+            </ul>
+            <div class="sidebar-footer">
+                <button class="btn-logout" @onclick="Logout">Logout</button>
+            </div>
+        </nav>
+    }
+
+    <main class="@(Auth.IsLoggedIn ? "main-content" : "main-content-full")">
+        @Body
+    </main>
+</div>
+
+@code {
+    private void Logout()
+    {
+        Auth.Logout();
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+}

@@ -1,0 +1,151 @@
+@page "/manage-kids"
+@inject AllowanceApiService Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+@if (!Auth.IsLoggedIn || Auth.CurrentUser?.Role != "parent")
+{
+    <p>Access denied. Parents only.</p>
+}
+else
+{
+    <h2>👧 Manage Kids</h2>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-error">@errorMessage</div>
+    }
+
+    <div class="form-card">
+        <h3>Register New Kid</h3>
+        <EditForm Model="registerModel" OnValidSubmit="HandleRegister">
+            <div class="form-group">
+                <label>Username</label>
+                <InputText @bind-Value="registerModel.Username" class="form-input" placeholder="e.g., timmy" />
+            </div>
+
+            <div class="form-group">
+                <label>Display Name</label>
+                <InputText @bind-Value="registerModel.DisplayName" class="form-input" placeholder="e.g., Timmy" />
+            </div>
+
+            <div class="form-group">
+                <label>Password</label>
+                <InputText @bind-Value="registerModel.Password" class="form-input" type="password" placeholder="Set a password" />
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                @(isLoading ? "Creating..." : "Create Account")
+            </button>
+        </EditForm>
+    </div>
+
+    <h3>All Kids</h3>
+    @if (kids.Any())
+    {
+        <table class="tx-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var kid in kids)
+                {
+                    <tr>
+                        <td>@kid.DisplayName</td>
+                        <td>@kid.Username</td>
+                        <td>$@(kidBalances.GetValueOrDefault(kid.Id, 0).ToString("F2"))</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>No kids registered yet. Use the form above to create an account.</p>
+    }
+}
+
+@code {
+    private RegisterRequest registerModel = new() { Role = "kid" };
+    private List<UserInfo> kids = new();
+    private Dictionary<int, decimal> kidBalances = new();
+    private bool isLoading;
+    private string? successMessage;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsLoggedIn || Auth.CurrentUser?.Role != "parent")
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        await LoadKids();
+    }
+
+    private async Task LoadKids()
+    {
+        var users = await Api.GetUsersAsync(Auth.Token!);
+        kids = users.Where(u => u.Role == "kid").ToList();
+
+        // Load balances for each kid
+        kidBalances.Clear();
+        foreach (var kid in kids)
+        {
+            var data = await Api.GetAllowanceAsync(Auth.Token!, kid.Id);
+            if (data != null)
+            {
+                kidBalances[kid.Id] = data.Balance;
+            }
+        }
+    }
+
+    private async Task HandleRegister()
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(registerModel.Username) ||
+            string.IsNullOrWhiteSpace(registerModel.Password) ||
+            string.IsNullOrWhiteSpace(registerModel.DisplayName))
+        {
+            errorMessage = "All fields are required.";
+            return;
+        }
+
+        isLoading = true;
+
+        try
+        {
+            var result = await Api.RegisterAsync(Auth.Token!, registerModel);
+            if (result != null)
+            {
+                successMessage = $"Account created for {result.DisplayName}!";
+                registerModel = new RegisterRequest { Role = "kid" };
+                await LoadKids();
+            }
+            else
+            {
+                errorMessage = "Failed to create account. Username may already exist.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Error connecting to server.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

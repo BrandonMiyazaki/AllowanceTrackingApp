@@ -1,0 +1,140 @@
+@page "/dashboard"
+@inject AllowanceApiService Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+@if (!Auth.IsLoggedIn)
+{
+    <p>Redirecting to login...</p>
+}
+else
+{
+    <h2>📊 Dashboard</h2>
+
+    @if (Auth.CurrentUser?.Role == "parent" && kids.Any())
+    {
+        <div class="kid-selector">
+            <label>Viewing:</label>
+            <select @onchange="OnKidChanged" class="form-input">
+                @foreach (var kid in kids)
+                {
+                    <option value="@kid.Id" selected="@(kid.Id == selectedUserId)">@kid.DisplayName</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <p>Loading...</p>
+    }
+    else if (allowanceData != null)
+    {
+        <div class="balance-card">
+            <h3>@allowanceData.User.DisplayName's Balance</h3>
+            <div class="balance-amount @(allowanceData.Balance >= 0 ? "positive" : "negative")">
+                $@allowanceData.Balance.ToString("F2")
+            </div>
+        </div>
+
+        <h3>Recent Transactions</h3>
+        @if (allowanceData.Transactions.Any())
+        {
+            <table class="tx-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Amount</th>
+                        <th>By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tx in allowanceData.Transactions)
+                    {
+                        <tr>
+                            <td>@tx.CreatedAt.ToString("MMM dd, yyyy h:mm tt")</td>
+                            <td>@tx.Description</td>
+                            <td class="@(tx.Amount >= 0 ? "positive" : "negative")">
+                                @(tx.Amount >= 0 ? "+" : "")$@tx.Amount.ToString("F2")
+                            </td>
+                            <td>@tx.CreatedByName</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p>No transactions yet.</p>
+        }
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-error">@errorMessage</div>
+    }
+}
+
+@code {
+    private AllowanceResponse? allowanceData;
+    private List<UserInfo> kids = new();
+    private int selectedUserId;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsLoggedIn)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        if (Auth.CurrentUser!.Role == "parent")
+        {
+            var users = await Api.GetUsersAsync(Auth.Token!);
+            kids = users.Where(u => u.Role == "kid").ToList();
+
+            // If there are kids, show the first one; otherwise show parent's own
+            selectedUserId = kids.FirstOrDefault()?.Id ?? Auth.CurrentUser.Id;
+        }
+        else
+        {
+            selectedUserId = Auth.CurrentUser!.Id;
+        }
+
+        await LoadAllowance();
+    }
+
+    private async Task OnKidChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var id))
+        {
+            selectedUserId = id;
+            await LoadAllowance();
+        }
+    }
+
+    private async Task LoadAllowance()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            allowanceData = await Api.GetAllowanceAsync(Auth.Token!, selectedUserId);
+            if (allowanceData == null)
+            {
+                errorMessage = "Could not load allowance data.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Error connecting to server.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

@@ -1,0 +1,116 @@
+@page "/add"
+@inject AllowanceApiService Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+@if (!Auth.IsLoggedIn || Auth.CurrentUser?.Role != "parent")
+{
+    <p>Access denied. Parents only.</p>
+}
+else
+{
+    <h2>➕ Add Allowance</h2>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-error">@errorMessage</div>
+    }
+
+    <div class="form-card">
+        <EditForm Model="formModel" OnValidSubmit="HandleAdd">
+            <div class="form-group">
+                <label>Select Kid</label>
+                <select @bind="selectedKidId" class="form-input">
+                    <option value="0">-- Select --</option>
+                    @foreach (var kid in kids)
+                    {
+                        <option value="@kid.Id">@kid.DisplayName</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Amount ($)</label>
+                <InputNumber @bind-Value="formModel.Amount" class="form-input" min="0.01" step="0.01" />
+            </div>
+
+            <div class="form-group">
+                <label>Description</label>
+                <InputText @bind-Value="formModel.Description" class="form-input" placeholder="e.g., Weekly allowance" />
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                @(isLoading ? "Adding..." : "Add Allowance")
+            </button>
+        </EditForm>
+    </div>
+}
+
+@code {
+    private TransactionRequest formModel = new();
+    private List<UserInfo> kids = new();
+    private int selectedKidId;
+    private bool isLoading;
+    private string? successMessage;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsLoggedIn || Auth.CurrentUser?.Role != "parent")
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        var users = await Api.GetUsersAsync(Auth.Token!);
+        kids = users.Where(u => u.Role == "kid").ToList();
+    }
+
+    private async Task HandleAdd()
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        if (selectedKidId == 0)
+        {
+            errorMessage = "Please select a kid.";
+            return;
+        }
+
+        if (formModel.Amount <= 0)
+        {
+            errorMessage = "Amount must be greater than zero.";
+            return;
+        }
+
+        isLoading = true;
+
+        try
+        {
+            var result = await Api.AddAllowanceAsync(Auth.Token!, selectedKidId, formModel);
+            if (result != null)
+            {
+                var kidName = kids.FirstOrDefault(k => k.Id == selectedKidId)?.DisplayName ?? "kid";
+                successMessage = $"Added ${formModel.Amount:F2} to {kidName}'s account. New balance: ${result.NewBalance:F2}";
+                formModel = new TransactionRequest();
+            }
+            else
+            {
+                errorMessage = "Failed to add allowance.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Error connecting to server.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

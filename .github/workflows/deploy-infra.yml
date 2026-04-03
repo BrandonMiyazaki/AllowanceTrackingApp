@@ -1,0 +1,157 @@
+# Deploy Infrastructure
+# Deploys all 5 Bicep steps in order using OIDC federated credentials.
+# Requires GitHub → Azure OIDC trust configured on the Azure AD app registration.
+
+name: Deploy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      step:
+        description: 'Which step to deploy (or all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - networking
+          - sql
+          - backend
+          - frontend
+          - monitoring
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_RESOURCE_GROUP: rg-allowanceapp-${{ github.event.inputs.environment }}
+  AZURE_LOCATION: westus2
+
+jobs:
+  deploy-step1:
+    if: ${{ github.event.inputs.step == 'all' || github.event.inputs.step == 'networking' }}
+    name: 'Step 1: Networking'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create Resource Group
+        run: |
+          az group create --name ${{ env.AZURE_RESOURCE_GROUP }} --location ${{ env.AZURE_LOCATION }}
+
+      - name: Deploy Networking
+        run: |
+          az deployment group create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --template-file infra/networking/main.bicep \
+            --parameters infra/networking/parameters.bicepparam
+
+  deploy-step2:
+    if: ${{ github.event.inputs.step == 'all' || github.event.inputs.step == 'sql' }}
+    name: 'Step 2: Azure SQL'
+    needs: [deploy-step1]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy SQL
+        run: |
+          az deployment group create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --template-file infra/sql/main.bicep \
+            --parameters infra/sql/parameters.bicepparam
+
+  deploy-step3:
+    if: ${{ github.event.inputs.step == 'all' || github.event.inputs.step == 'backend' }}
+    name: 'Step 3: Backend API + Key Vault'
+    needs: [deploy-step2]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Backend
+        run: |
+          az deployment group create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --template-file infra/backend/main.bicep \
+            --parameters infra/backend/parameters.bicepparam
+
+  deploy-step4:
+    if: ${{ github.event.inputs.step == 'all' || github.event.inputs.step == 'frontend' }}
+    name: 'Step 4: Blazor Frontend'
+    needs: [deploy-step3]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Frontend
+        run: |
+          az deployment group create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --template-file infra/frontend/main.bicep \
+            --parameters infra/frontend/parameters.bicepparam
+
+  deploy-step5:
+    if: ${{ github.event.inputs.step == 'all' || github.event.inputs.step == 'monitoring' }}
+    name: 'Step 5: Monitoring'
+    needs: [deploy-step4]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Monitoring
+        run: |
+          az deployment group create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --template-file infra/monitoring/main.bicep \
+            --parameters infra/monitoring/parameters.bicepparam

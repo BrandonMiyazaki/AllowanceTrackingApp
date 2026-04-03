@@ -1,0 +1,119 @@
+@page "/deduct"
+@inject AllowanceApiService Api
+@inject AuthStateService Auth
+@inject NavigationManager Nav
+
+@if (!Auth.IsLoggedIn)
+{
+    <p>Redirecting to login...</p>
+}
+else
+{
+    <h2>➖ Spend / Deduct</h2>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-error">@errorMessage</div>
+    }
+
+    <div class="form-card">
+        <EditForm Model="formModel" OnValidSubmit="HandleDeduct">
+            @if (Auth.CurrentUser?.Role == "parent")
+            {
+                <div class="form-group">
+                    <label>Select Kid</label>
+                    <select @bind="selectedUserId" class="form-input">
+                        @foreach (var kid in kids)
+                        {
+                            <option value="@kid.Id">@kid.DisplayName</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="form-group">
+                <label>Amount ($)</label>
+                <InputNumber @bind-Value="formModel.Amount" class="form-input" min="0.01" step="0.01" />
+            </div>
+
+            <div class="form-group">
+                <label>What did you spend on?</label>
+                <InputText @bind-Value="formModel.Description" class="form-input" placeholder="e.g., Toy, candy, etc." />
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                @(isLoading ? "Processing..." : "Deduct")
+            </button>
+        </EditForm>
+    </div>
+}
+
+@code {
+    private TransactionRequest formModel = new();
+    private List<UserInfo> kids = new();
+    private int selectedUserId;
+    private bool isLoading;
+    private string? successMessage;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Auth.IsLoggedIn)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        if (Auth.CurrentUser!.Role == "parent")
+        {
+            var users = await Api.GetUsersAsync(Auth.Token!);
+            kids = users.Where(u => u.Role == "kid").ToList();
+            selectedUserId = kids.FirstOrDefault()?.Id ?? Auth.CurrentUser.Id;
+        }
+        else
+        {
+            selectedUserId = Auth.CurrentUser!.Id;
+        }
+    }
+
+    private async Task HandleDeduct()
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        if (formModel.Amount <= 0)
+        {
+            errorMessage = "Amount must be greater than zero.";
+            return;
+        }
+
+        isLoading = true;
+
+        try
+        {
+            var result = await Api.DeductAllowanceAsync(Auth.Token!, selectedUserId, formModel);
+            if (result != null)
+            {
+                successMessage = $"Deducted ${formModel.Amount:F2}. New balance: ${result.NewBalance:F2}";
+                formModel = new TransactionRequest();
+            }
+            else
+            {
+                errorMessage = "Failed to deduct. You may have insufficient balance.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Error connecting to server.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
